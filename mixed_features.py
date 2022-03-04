@@ -9,20 +9,20 @@ import tensorflow
 from tensorflow.random import set_seed
 set_seed(0)
 from tqdm import tqdm
-import tensorflow as tf
-from tensorflow import keras
+import tensorflow
 from tensorflow.keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Model, Input
-from keras.layers import GRU, LSTM, Embedding, Dense, TimeDistributed, Dropout, Bidirectional
-from keras.callbacks import EarlyStopping
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Model
+from tensorflow.keras import Input
+from tensorflow.keras.layers import GRU, LSTM, Embedding, Dense, TimeDistributed, Dropout, Bidirectional
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import LayerNormalization
 from sklearn.metrics import *
 from sklearn.model_selection import train_test_split
-from keras.metrics import BinaryAccuracy, Precision, Recall, AUC
+from tensorflow.keras.metrics import BinaryAccuracy, Precision, Recall, AUC
 
 
-class LSTM_TRAINABLE_EMBEDS_MIXED():
+class LSTM_TRAINABLE_EMBEDS():
   def __init__(self,
                rnn_layer_sizes = [128],
                layer_normalize = [True],
@@ -67,7 +67,7 @@ class LSTM_TRAINABLE_EMBEDS_MIXED():
         self.no_of_ml_features = no_of_ml_features
 
 
-  def build(self, vocab_size):
+  def build(self, vocab_size, bias):
       text_inputs= Input(shape=(self.max_seq_len), name="inputs")
       ml_inputs= Input(shape=(self.no_of_ml_features), name="ml_inputs")
       #x = inputs
@@ -83,12 +83,12 @@ class LSTM_TRAINABLE_EMBEDS_MIXED():
         if self.layer_normalize[i]:
           x = LayerNormalization()(x)
       #concat ML features with the last hidden state of the LSTM
-      x = tf.keras.layers.concatenate([x, ml_inputs])
+      x = tensorflow.keras.layers.concatenate([x, ml_inputs])
       x = Dense(64, activation = 'relu')(x)
-      pred = Dense(1, activation='sigmoid')(x)
+      pred = Dense(1, activation='sigmoid', bias_initializer=tensorflow.keras.initializers.Constant(bias))(x)
       self.model = Model(inputs=[text_inputs, ml_inputs], outputs=pred)
       self.model.compile(loss=self.loss,
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=self.lr),
+                    optimizer=tensorflow.keras.optimizers.Adam(learning_rate=self.lr),
                     metrics=self.metrics)
       if self.show_summary:
           self.model.summary()
@@ -110,13 +110,13 @@ class LSTM_TRAINABLE_EMBEDS_MIXED():
         x = pad_sequences(sequences=x, maxlen=self.max_seq_len, padding="post", value=0)  # padding
         return x
   
-  def fit(self, tokenized_actions, ml_inputs, y, val_tokenized_actions, val_ml_inputs, val_y):
+  def fit(self, tokenized_actions, ml_inputs, y, val_tokenized_actions, val_ml_inputs, val_y, bias = None):
     # Create vocab and lookup tables
     self.create_vocab(tokenized_actions)
     # turn the tokenized texts and token labels to padded sequences of indices
     X = self.to_sequences(tokenized_actions)
     # build the model and compile it
-    self.build(self.vocab_size)
+    self.build(self.vocab_size, bias)
     # start training
     vx = self.to_sequences(val_tokenized_actions)
     history = self.model.fit([X, ml_inputs], y, batch_size=self.batch_size, epochs=self.epochs, validation_data=([vx, val_ml_inputs], val_y),
